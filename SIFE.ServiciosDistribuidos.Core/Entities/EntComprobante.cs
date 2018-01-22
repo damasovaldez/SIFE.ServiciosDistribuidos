@@ -158,5 +158,11 @@
 
         [JsonProperty("impuestos_retencion")]
         public List<EntImpuestoRetencion> ImpuestosRetencion { get; set; }
+
+        [JsonProperty("esPago")]
+        public bool EsPago { get; set; }
+
+        [JsonProperty("pago_detalle")]
+        public List<EntComprobantePago> ComprobantesPagos { get; set; }
     }
 }

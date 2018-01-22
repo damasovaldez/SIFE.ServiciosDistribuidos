@@ -5,12 +5,14 @@ using System.Configuration;
 using System.Linq;
 using SIFE.ServiciosDistribuidos.Core.Extensions;
 using Profact.TimbraCFDI33;
+using System.Xml;
 
 namespace SIFE.ServiciosDistribuidos.Core.Services
 {
     public interface IComprobanteService
     {
         EntResultadoTimbrado EmitirComprobante(EntComprobante comprobante, bool emitidoEnMatriz);
+        EntResultadoCancelacion CancelarComprobante(string emisorRFC, string uuid);
     }
 
     public class ComprobanteService : IComprobanteService
@@ -282,81 +284,164 @@ namespace SIFE.ServiciosDistribuidos.Core.Services
                                                    Importe = grupo.Sum(x => x.Importe)
                                                }).ToList();
 
-                //Se registran los impuestos federales
-                CFDi.Impuestos = new ComprobanteImpuestos();
+                if (!comprobante.EsPago)
+                { 
+                    //Se registran los impuestos federales
+                    CFDi.Impuestos = new ComprobanteImpuestos();
 
-                if (impuestosTrasladoGroup.Count > 0)
-                {
-                    decimal totalImpuestosTrasladados = 0;
-                    CFDi.Impuestos.Traslados = new ComprobanteImpuestosTraslado[impuestosTrasladoGroup.Count];
-
-                    var i = 0;
-                    foreach (var impuesto in impuestosTrasladoGroup)
+                    if (impuestosTrasladoGroup.Count > 0)
                     {
-                        CFDi.Impuestos.Traslados[i] = new ComprobanteImpuestosTraslado();
-                        if (impuesto.Tipo == "IVA")
+                        decimal totalImpuestosTrasladados = 0;
+                        CFDi.Impuestos.Traslados = new ComprobanteImpuestosTraslado[impuestosTrasladoGroup.Count];
+
+                        var i = 0;
+                        foreach (var impuesto in impuestosTrasladoGroup)
                         {
-                            CFDi.Impuestos.Traslados[i].Impuesto = "002";
-                            CFDi.Impuestos.Traslados[i].TipoFactor = "Tasa";
-                            CFDi.Impuestos.Traslados[i].TasaOCuota = impuesto.Tasa.ToString();
-                            CFDi.Impuestos.Traslados[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
-                        }
-                        if (impuesto.Tipo == "IEPS")
-                        {
-                            CFDi.Impuestos.Traslados[i].Impuesto = "003";
-                            CFDi.Impuestos.Traslados[i].TipoFactor = "Tasa";
-                            CFDi.Impuestos.Traslados[i].TasaOCuota = impuesto.Tasa.ToString();
-                            CFDi.Impuestos.Traslados[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();                            
+                            CFDi.Impuestos.Traslados[i] = new ComprobanteImpuestosTraslado();
+                            if (impuesto.Tipo == "IVA")
+                            {
+                                CFDi.Impuestos.Traslados[i].Impuesto = "002";
+                                CFDi.Impuestos.Traslados[i].TipoFactor = "Tasa";
+                                CFDi.Impuestos.Traslados[i].TasaOCuota = impuesto.Tasa.ToString();
+                                CFDi.Impuestos.Traslados[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
+                            }
+                            if (impuesto.Tipo == "IEPS")
+                            {
+                                CFDi.Impuestos.Traslados[i].Impuesto = "003";
+                                CFDi.Impuestos.Traslados[i].TipoFactor = "Tasa";
+                                CFDi.Impuestos.Traslados[i].TasaOCuota = impuesto.Tasa.ToString();
+                                CFDi.Impuestos.Traslados[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();                            
+                            }
+
+                            totalImpuestosTrasladados += impuesto.Importe;
+                            i++;
                         }
 
-                        totalImpuestosTrasladados += impuesto.Importe;
-                        i++;
+                        CFDi.Impuestos.TotalImpuestosTrasladados = totalImpuestosTrasladados;
+                        CFDi.Impuestos.TotalImpuestosTrasladadosSpecified = true;
                     }
 
-                    CFDi.Impuestos.TotalImpuestosTrasladados = totalImpuestosTrasladados;
-                    CFDi.Impuestos.TotalImpuestosTrasladadosSpecified = true;
-                }
-
-                if (impuestosRetencionGroup.Count > 0)
-                {
-                    decimal totalImpuestosRetenidos = 0;
-                    CFDi.Impuestos.Retenciones = new ComprobanteImpuestosRetencion[impuestosRetencionGroup.Count];
-
-                    var i = 0;
-                    foreach (var impuesto in impuestosRetencionGroup)
+                    if (impuestosRetencionGroup.Count > 0)
                     {
-                        CFDi.Impuestos.Retenciones[i] = new ComprobanteImpuestosRetencion();
-                        if (impuesto.Tipo == "IVA")
+                        decimal totalImpuestosRetenidos = 0;
+                        CFDi.Impuestos.Retenciones = new ComprobanteImpuestosRetencion[impuestosRetencionGroup.Count];
+
+                        var i = 0;
+                        foreach (var impuesto in impuestosRetencionGroup)
                         {
-                            CFDi.Impuestos.Retenciones[i].Impuesto = "002";
-                            CFDi.Impuestos.Retenciones[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
-                        }
-                        if (impuesto.Tipo == "ISR")
-                        {
-                            CFDi.Impuestos.Retenciones[i].Impuesto = "001";
-                            CFDi.Impuestos.Retenciones[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
+                            CFDi.Impuestos.Retenciones[i] = new ComprobanteImpuestosRetencion();
+                            if (impuesto.Tipo == "IVA")
+                            {
+                                CFDi.Impuestos.Retenciones[i].Impuesto = "002";
+                                CFDi.Impuestos.Retenciones[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
+                            }
+                            if (impuesto.Tipo == "ISR")
+                            {
+                                CFDi.Impuestos.Retenciones[i].Impuesto = "001";
+                                CFDi.Impuestos.Retenciones[i].Importe = impuesto.Importe.ToString("##0.00").ToDecimal();
+                            }
+
+                            totalImpuestosRetenidos += impuesto.Importe;
+                            i++;
                         }
 
-                        totalImpuestosRetenidos += impuesto.Importe;
-                        i++;
+                        CFDi.Impuestos.TotalImpuestosRetenidos = totalImpuestosRetenidos;
+                        CFDi.Impuestos.TotalImpuestosRetenidosSpecified = true;
                     }
-
-                    CFDi.Impuestos.TotalImpuestosRetenidos = totalImpuestosRetenidos;
-                    CFDi.Impuestos.TotalImpuestosRetenidosSpecified = true;
                 }
 
                 // Se registran los complementos de la factura
-                //var xmlComplementos = new List<XmlElement>();
+                var xmlComplementos = new List<XmlElement>();
+                
+                // Complemento para pago
+                if (comprobante.EsPago)
+                {
+                    var detallePago = new Profact.TimbraCFDI33.Complementos.Pagos10.PagosPago()
+                    {
+                        FechaPago = comprobante.ComprobantesPagos.Fecha,
+                        FormaDePagoP = comprobante.ComprobantesPagos.FormaPago,
+                        MonedaP = comprobante.ComprobantesPagos.Moneda,
+                        TipoCambioP = comprobante.ComprobantesPagos.TipoCambio ?? comprobante.ComprobantesPagos.TipoCambio.ToDecimal(),
+                        TipoCambioPSpecified = comprobante.ComprobantesPagos.TipoCambio != null,
+                        Monto = comprobante.ComprobantesPagos.Monto,
+                        RfcEmisorCtaBen = string.IsNullOrEmpty(comprobante.ComprobantesPagos.EmisorCuentaBenef) ? null : comprobante.ComprobantesPagos.EmisorCuentaBenef,
+                        RfcEmisorCtaOrd = string.IsNullOrEmpty(comprobante.ComprobantesPagos.EmisorCuentaOrigen) ? null : comprobante.ComprobantesPagos.EmisorCuentaOrigen,
+                        CtaBeneficiario = string.IsNullOrEmpty(comprobante.ComprobantesPagos.CuentaBeneficiaria) ? null : comprobante.ComprobantesPagos.CuentaBeneficiaria,
+                        CtaOrdenante = string.IsNullOrEmpty(comprobante.ComprobantesPagos.CuentaOrdenante) ? null : comprobante.ComprobantesPagos.CuentaOrdenante,
+                        NomBancoOrdExt = string.IsNullOrEmpty(comprobante.ComprobantesPagos.Banco) ? null : comprobante.ComprobantesPagos.Banco,
+                        NumOperacion = string.IsNullOrEmpty(comprobante.ComprobantesPagos.NumeroOperacion) ? null : comprobante.ComprobantesPagos.NumeroOperacion,
+                        TipoCadPago = string.IsNullOrEmpty(comprobante.ComprobantesPagos.TipoCadenaPago) ? null : comprobante.ComprobantesPagos.TipoCadenaPago,
+                        TipoCadPagoSpecified = !string.IsNullOrEmpty(comprobante.ComprobantesPagos.TipoCadenaPago),
+                        CadPago = string.IsNullOrEmpty(comprobante.ComprobantesPagos.CadenaPago) ? null : comprobante.ComprobantesPagos.CadenaPago,
+                        //CertPago
+                        //SelloPago
+                    };
+
+                    var tieneComprobantesRelacionados = true;
+                    if (tieneComprobantesRelacionados)
+                    {
+                        detallePago.DoctoRelacionado = new PagosPagoDoctoRelacionado[comprobante.ComprobantesPagos.DocumentosRelacionados.Count];
+                        var i = 0;
+                        foreach (var doc in comprobante.ComprobantesPagos.DocumentosRelacionados.ToList())
+                        {
+                            var doctoRelacionado = new Profact.TimbraCFDI33.Complementos.Pagos10.PagosPagoDoctoRelacionado()
+                            {
+                                IdDocumento = doc.IdDocumento,
+                                MonedaDR = doc.Moneda,
+                                MetodoDePagoDR = doc.MetodoPago,
+                                NumParcialidad = string.IsNullOrEmpty(doc.NumParcialidad.ToString()) ? null : doc.NumParcialidad.ToString(),
+                                ImpSaldoAnt = doc.ImpSaldoAnt ?? doc.ImpSaldoAnt.ToDecimal(),
+                                ImpSaldoAntSpecified = doc.ImpSaldoAnt != null,
+                                ImpSaldoInsoluto = doc.ImpSaldoInsoluto ?? doc.ImpSaldoInsoluto.ToDecimal(),
+                                ImpSaldoInsolutoSpecified = doc.ImpSaldoInsoluto != null,
+                                ImpPagado = doc.ImpPagado ?? doc.ImpPagado.ToDecimal(),
+                                ImpPagadoSpecified = doc.ImpPagado != null,
+                                Folio = string.IsNullOrEmpty(doc.Folio) ? null : doc.Folio,
+                                Serie = string.IsNullOrEmpty(doc.Serie) ? null : doc.Serie,
+                                TipoCambioDR = doc.TipoCambio ?? doc.TipoCambio.ToDecimal(),
+                                TipoCambioDRSpecified = doc.TipoCambio != null
+                            };
+
+                            detallePago.DoctoRelacionado[i] = new PagosPagoDoctoRelacionado();
+                            detallePago.DoctoRelacionado[i] = doctoRelacionado;
+                            i++;
+                        }
+                    }
+
+                    var pago = new Profact.TimbraCFDI33.Complementos.Pagos10.Pagos();
+                    pago.Version = "1.0";
+                    pago.Pago = new PagosPago[1];
+                    pago.Pago[0] = new PagosPago();
+                    pago.Pago[0] = detallePago;
+
+                    XmlSerializerNamespaces nsPagos = new XmlSerializerNamespaces();
+                    nsPagos.Add("pago10", "http://www.sat.gob.mx/Pagos");
+                    string xmlPagos = XMLUtilerias.SerializaObjeto(pago, typeof(Pagos), nsPagos);
+
+                    XmlDocument docPago = new XmlDocument();
+                    docPago.LoadXml(xmlPagos);
+
+                    xmlComplementos.Add(docPago.DocumentElement);
+                    CFDi.PagosSpecified = true;
+                }
+
                 // Impuestos locales
                 //if (comprobante.ImpuestosLocales != null)
                 //{
-                //if (comprobante.ImpuestosLocales.Count > 0)
-                //{
-                //XmlDocument impLocal = RegistrarImpuestosLocales(comprobante.ImpuestosLocales);
-                //xmlComplementos.Add(impLocal.DocumentElement);
-                //CFDi.ImpLocalSpecified = true;
+                //  if (comprobante.ImpuestosLocales.Count > 0)
+                //  {
+                //      XmlDocument impLocal = RegistrarImpuestosLocales(comprobante.ImpuestosLocales);
+                //      xmlComplementos.Add(impLocal.DocumentElement);
+                //      CFDi.ImpLocalSpecified = true;
+                //  }
                 //}
-                //}
+
+                // Se agregan los complementos
+                if (xmlComplementos.Count > 0)
+                {
+                    CFDi.Complemento = new Profact.TimbraCFDI33.ComprobanteComplemento();
+                    CFDi.Complemento.Any = xmlComplementos.ToArray<XmlElement>();
+                }
 
                 //Timbramos el comprobante a traves de una petición al PAC
                 var resultadoTimbre = conector.TimbraCFDI(CFDi);
@@ -387,6 +472,34 @@ namespace SIFE.ServiciosDistribuidos.Core.Services
             {
                 Console.WriteLine(e);
                 throw e.GetBaseException();
+            }
+        }
+
+        public EntResultadoCancelacion CancelarComprobante(string emisorRFC, string uuid)
+        {
+            try
+            {
+                //Extraemos la configuración del archivo
+                bool ambienteProductivo = ConfigurationManager.AppSettings.GetValues("ambienteProductivo")[0].ToBoolean();
+                string usuarioIntegrador = ConfigurationManager.AppSettings.GetValues("usuarioIntegrador")[0];
+
+                //Establecemos las credenciales para el permiso de conexión
+                Conector conector = new Conector(ambienteProductivo);
+                conector.EstableceCredenciales(usuarioIntegrador);
+
+                //Cancelamos el comprobante a traves de una petición al PAC
+                Profact.TimbraCFDI.ResultadoCancelacion resultadoCancelacion = conector.CancelaCFDI(emisorRFC, uuid);
+
+                EntResultadoCancelacion resultado = new EntResultadoCancelacion()
+                {
+                    Exitoso = resultadoCancelacion.Exitoso,
+                    Mensaje = resultadoCancelacion.Descripcion
+                };
+                return resultado;
+            }
+            catch (Exception ex)
+            {
+                throw ex.GetBaseException();
             }
         }
     }

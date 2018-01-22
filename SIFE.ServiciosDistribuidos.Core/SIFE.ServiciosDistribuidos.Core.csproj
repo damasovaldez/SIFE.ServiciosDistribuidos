@@ -56,8 +56,11 @@
     <Compile Include="Entities\EntComprobante.cs" />
     <Compile Include="Entities\EntComprobanteDetalle.cs" />
     <Compile Include="Entities\EntComprobanteImpuesto.cs" />
+    <Compile Include="Entities\EntComprobantePago.cs" />
+    <Compile Include="Entities\EntDocRelacionado.cs" />
     <Compile Include="Entities\EntImpuestoRetencion.cs" />
     <Compile Include="Entities\EntImpuestoTraslado.cs" />
+    <Compile Include="Entities\EntResultadoCancelacion.cs" />
     <Compile Include="Entities\EntResultadoTimbrado.cs" />
     <Compile Include="Extensions\TypeExtensions.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
